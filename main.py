@@ -2,6 +2,7 @@ import pyaudio
 import psycopg2
 import speech_recognition as sr
 import ollama
+import pyttsx3
 from os import getenv
 from dotenv import load_dotenv
 
@@ -14,6 +15,8 @@ class VoiceAssistant:
         self.microphone = sr.Microphone()
         self.model_name = model_name
         self.wake_word = wake_word
+
+        self.engine = pyttsx3.init()
 
         # Adjust for ambient noise once during initialization
         with self.microphone as source:
@@ -50,8 +53,13 @@ class VoiceAssistant:
 
     def chat_with_model(self, message):
         past_conversations = self.retrieve_past_conversations()
-        messages = [{'role': 'user', 'content': conv[0]} for conv in past_conversations]
-        messages.append({'role': 'user', 'content': (message + "If you hear hey llama, that is your wake word just ignore it. You are an AI Assistant and you don't have to respond to it. You are here to help me. You are an AI Assistant for the elderly. Please respond like you are talking to a human being.")})
+        messages = [{'role': 'system', 'content': "Your name is CARING AI. If you hear hey caring, that is your wake word just ignore it. You are an AI Assistant and you don't have to respond to it. You are here to help me. You are an AI Assistant for the elderly. Please respond like you are talking to a human being. Do not use any technical terms. Do not talk for too long as well. Keep it short but not too short and simple."}]
+        for conversation in past_conversations:
+            messages.append({'role': 'user', 'content': (conversation[0])})
+            messages.append({'role': 'assistant', 'content': (conversation[1])})
+        messages.append({'role': 'user', 'content': (message)})
+
+        print(past_conversations)
         
         stream = ollama.chat(
             model=self.model_name,
@@ -94,11 +102,15 @@ class VoiceAssistant:
                     print("Stopping voice assistant.")
                     break
             try:
-                if self.wake_word in transcription:
-                    response = self.chat_with_model(transcription)
-                    self.store_conversation(transcription, response)
+                response = self.chat_with_model(transcription)
+                self.speak(response)
+                self.store_conversation(transcription, response)
             except:
                 print("I am sorry, I did not understand you. Can you please repeat that?")
+
+    def speak(self, text):
+        self.engine.say(text)
+        self.engine.runAndWait()
 
     def close(self):
         if self.conn:
